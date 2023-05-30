@@ -1,0 +1,234 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+//    id 'com.erye.plugin'
+}
+
+//apply plugin: 'com.erye.plugin'
+
+android {
+    namespace 'com.ccipa.gradle'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.ccipa.gradle"
+        minSdk 24
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    flavorDimensions "ipa"
+    productFlavors {
+        erye {
+            dimension "ipa"
+            applicationId "com.erye.gradle"
+        }
+        erge {
+            dimension "ipa"
+            applicationId "com.erye.gradle2"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    sourceSets {
+        main {
+            res.srcDirs = [
+                    'src/main/res',
+                    'src/main/res-ad',
+                    'src/main/res-player',
+            ]
+        }
+    }
+}
+
+dependencies {
+
+    implementation 'androidx.core:core-ktx:1.7.0'
+    implementation 'androidx.appcompat:appcompat:1.4.1'
+    implementation 'com.google.android.material:material:1.5.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.3'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.3'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
+}
+
+// 把生成的apk文件copy到电脑上指定的文件夹下面
+task copyApk {
+    doLast {
+        def source = this.buildDir.path + "/outputs/apk"
+        def destination = "/Users/space/Downloads"
+        // 移动文件的命令move file from a to b
+        def command = "mv -f $source $destination"
+        // 定义好command命令后，命令需要再exec中执行
+        exec {
+            try {
+                // 下面两行是固定的执行系统命令的语法，唯一有改变的就是command的具体内容
+                executable "bash"
+                args "-c", command
+                println "the command executed successfully"
+            } catch (ignored) {
+                println "the command executed failed"
+            }
+        }
+    }
+}
+
+task hello {
+    setGroup('test')
+    setDescription("this is a test task")
+    doFirst {
+        println('hello doFirst')
+    }
+    doLast {
+        println('hello doLast')
+    }
+}
+
+task task1 {
+    doLast {
+        println("task1")
+    }
+}
+
+task task2 {
+    mustRunAfter task1
+    doLast {
+        println("task2")
+    }
+}
+
+task lib1 {
+    doLast {
+        println("lib1")
+    }
+}
+
+task lib2 {
+    doLast {
+        println("lib2")
+    }
+}
+
+task task3 {
+    mustRunAfter task2
+    doLast {
+        println("task3")
+    }
+}
+
+task lib23 {
+    doLast {
+        println("lib23")
+    }
+}
+
+this.project.afterEvaluate { project ->
+    def buildTask = project.tasks.getByName('build')
+    println "buildTask = " + buildTask
+    if (buildTask != null) {
+        buildTask.doFirst {
+
+        }
+    }
+}
+
+
+task deleteOfflineRelease {
+    doLast {
+        File directory = file('src/main/assets/offline')
+        if (directory.exists()) {
+            File[] files = directory.listFiles()
+            if (files != null) {
+                files.each { file ->
+                    if (file.isFile()) {
+                        file.delete()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 定义删除文件的方法，如果拿到接口数据并且判断需要重新上传zip文件，则要删除之前已有的文件
+// 这里定义成了方法，也可以是一个单独的task，例如上面自定义的task，如果是定义为task，则该task需要被依赖
+def deleteOffline(String env) {
+    File directory = file('src/main/assets/offline_' + env)
+    if (directory.exists()) {
+        File[] files = directory.listFiles()
+        if (files != null) {
+            files.each { file ->
+                if (file.isFile()) {
+                    file.delete()
+                }
+            }
+        }
+    }
+}
+
+// 下面debug环境下的离线包
+task downloadOfflineDebug() {
+    doLast {
+        deleteOffline('debug')
+        ant {
+            mkdir(dir: 'src/main/assets/offline_debug')
+            get(src: 'https://d3adhqenoxpdg2.cloudfront.net/Android/staging/ph/h5/zip-folder/v4.11.33.zip', dest: 'src/main/assets/offline_debug/v4.11.33.zip')
+        }
+    }
+}
+
+preBuild.dependsOn downloadOfflineDebug
+
+// 下面release环境下的离线包
+task downloadOfflineRelease() {
+    doLast {
+        ant {
+            mkdir(dir: 'src/main/assets/offline_release')
+            get(src: 'https://d3adhqenoxpdg2.cloudfront.net/Android/staging/ph/h5/zip-folder/v4.11.33.zip', dest: 'src/main/assets/offline_release/v4.11.33.zip')
+        }
+    }
+}
+
+// 打包debug，每次打包要先执行下载离线包的任务
+task packagingDebug(dependsOn: downloadOfflineDebug) {
+    doLast {
+        packaging("Debug", "") // 先传空
+    }
+}
+
+// 打包release，每次打包要先执行下载离线包的任务
+task packagingErYeRelase {
+    doLast {
+        packaging("Release", "erye")
+    }
+}
+
+task packagingErGeRelase {
+    doLast {
+        packaging("Release", "erge")
+    }
+}
+
+// 执行打包的命令./gradlew assembleSgDebug or assembleSgRelease
+def packaging(String env, String flavor) {
+    exec {
+        workingDir "../"
+        commandLine "./gradlew", "assemble" + flavor + env
+    }
+}
+
